@@ -1,7 +1,7 @@
 ﻿using Evently.Common.Domain;
 using Microsoft.AspNetCore.Http;
 
-namespace Evently.Modules.Events.Presentation.ApiResults;
+namespace Evently.Common.Presentation.ApiResults;
 
 public static class ApiResults
 {
@@ -12,7 +12,7 @@ public static class ApiResults
             throw new InvalidOperationException();
         }
 
-        return Microsoft.AspNetCore.Http.Results.Problem(
+        return Results.Problem(
             title: GetTitle(result.Error),
             detail: GetDetail(result.Error),
             type: GetType(result.Error.Type),
