@@ -57,5 +57,3 @@ flowchart TD A[HTTP Request] --> B[Endpoint Presentation] B --> C[MediatR Comman
 -   La comunicación entre capas se realiza mediante MediatR.
 -   La persistencia se gestiona con Entity Framework Core.
 -   Los endpoints son minimalistas y fáciles de mantener.
-
-¿Necesitas que detalle algún flujo específico o alguna parte del código?
