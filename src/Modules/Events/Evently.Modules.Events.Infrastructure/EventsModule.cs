@@ -17,7 +17,7 @@ namespace Evently.Modules.Events.Infrastructure;
 
 public static class EventsModule
 {
-    public static IServiceCollection AddEventsModule(
+    public static IServiceCollection AddUsersModule(
         this IServiceCollection services,
         IConfiguration configuration)
     {
