@@ -5,6 +5,7 @@ using Evently.Common.Infrastructure;
 using Serilog;
 using Evently.Api.Middleware;
 using Evently.Common.Presentation.Endpoints;
+using Evently.Modules.Users.Infrastructure;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -20,12 +21,14 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddApplication([
-    Evently.Modules.Events.Application.AssemblyReference.Assembly
+    Evently.Modules.Events.Application.AssemblyReference.Assembly,
+    Evently.Modules.Users.Application.AssemblyReference.Assembly
 ]);
 builder.Services.AddInfrastructure(builder.Configuration.GetConnectionString("Database")!);
-builder.Configuration.AddModuleConfiguration(["events"]);
+builder.Configuration.AddModuleConfiguration(["events", "users"]);
 
 builder.Services.AddEventsModule(builder.Configuration);
+builder.Services.AddUsersModule(builder.Configuration);
 
 WebApplication app = builder.Build();
 
