@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Evently.Common.Infrastructure.Outbox;
+namespace Evently.Common.Infrastructure.Interceptors;
 
 /// <summary>
 /// Interceptor that automatically publishes domain events AFTER Entity Framework saves changes to the database.

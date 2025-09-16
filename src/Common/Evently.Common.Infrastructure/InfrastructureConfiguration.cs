@@ -2,7 +2,7 @@
 using Evently.Common.Application.Data;
 using Evently.Common.Infrastructure.Clock;
 using Evently.Common.Infrastructure.Data;
-using Evently.Common.Infrastructure.Outbox;
+using Evently.Common.Infrastructure.Interceptors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
