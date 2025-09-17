@@ -15,6 +15,8 @@ public static class InfrastructureConfiguration
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
+        // Array of actions to configure MassTransit consumers
+        Action<IRegistrationConfigurator>[] configureConsumers,
         string databaseConnectionString)
     {
         NpgsqlDataSource npgsqlDataSource = new NpgsqlDataSourceBuilder(databaseConnectionString).Build();
@@ -33,6 +35,15 @@ public static class InfrastructureConfiguration
         services.AddMassTransit(configure =>
         {
             configure.SetKebabCaseEndpointNameFormatter();
+
+            // Allow register mass transit consumers
+            // Why we do it like this?
+            // 1- Because we want to keep this module as generic as possible
+            // 2- Common infrastructure should not have any reference to other modules
+            foreach (Action<IRegistrationConfigurator> consumer in configureConsumers)
+            {
+                consumer(configure);
+            }
 
             configure.UsingInMemory((context, cfg) =>
             {

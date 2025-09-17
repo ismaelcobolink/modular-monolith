@@ -7,7 +7,7 @@ using MediatR;
 
 namespace Evently.Modules.Ticketing.Presentation.Consumers;
 
-internal sealed class UserRegisteredIntegrationEventConsumer(ISender sender) : IConsumer<UserRegisteredIntegrationEvent>
+public sealed class UserRegisteredIntegrationEventConsumer(ISender sender) : IConsumer<UserRegisteredIntegrationEvent>
 {
     private readonly ISender _sender = sender;
 

@@ -26,7 +26,10 @@ builder.Services.AddApplication([
     Evently.Modules.Users.Application.AssemblyReference.Assembly,
     Evently.Modules.Ticketing.Application.AssemblyReference.Assembly,
 ]);
-builder.Services.AddInfrastructure(builder.Configuration.GetConnectionString("Database")!);
+builder.Services.AddInfrastructure(
+    [TicketingModule.ConfigureConsumers],
+    builder.Configuration.GetConnectionString("Database")!);
+
 builder.Configuration.AddModuleConfiguration(["events", "users", "ticketing"]);
 
 builder.Services.AddEventsModule(builder.Configuration);
