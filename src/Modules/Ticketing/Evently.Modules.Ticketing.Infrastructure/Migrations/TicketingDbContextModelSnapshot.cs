@@ -8,7 +8,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Evently.Modules.Ticketing.Infrastructure.Database.Migrations
+namespace Evently.Modules.Ticketing.Infrastructure.Migrations
 {
     [DbContext(typeof(TicketingDbContext))]
     partial class TicketingDbContextModelSnapshot : ModelSnapshot
