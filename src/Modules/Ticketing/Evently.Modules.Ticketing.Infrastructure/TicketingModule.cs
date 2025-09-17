@@ -1,7 +1,16 @@
-﻿using Evently.Common.Presentation.Endpoints;
+﻿using Evently.Common.Infrastructure.Interceptors;
+using Evently.Common.Presentation.Endpoints;
+using Evently.Modules.Ticketing.Application.Abstractions.Data;
+using Evently.Modules.Ticketing.Application.Carts;
+using Evently.Modules.Ticketing.Domain.Customers;
+using Evently.Modules.Ticketing.Infrastructure.Customers;
+using Evently.Modules.Ticketing.Infrastructure.Database;
+using Evently.Modules.Ticketing.Presentation.Consumers;
+using MassTransit;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Evently.Modules.Ticketing.Presentation;
 
 namespace Evently.Modules.Ticketing.Infrastructure;
 
@@ -11,15 +20,33 @@ public static class TicketingModule
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddEndpoints(Presentation.AssemblyReference.Assembly);
-
         services.AddInfrastructure(configuration);
+
+        services.AddEndpoints(Presentation.AssemblyReference.Assembly);
 
         return services;
     }
 
+    public static void ConfigureConsumers(IRegistrationConfigurator registrationConfiguration)
+    {
+        registrationConfiguration.AddConsumer<UserRegisteredIntegrationEventConsumer>();
+    }
+
     private static void AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Will implement later
+        services.AddDbContext<TicketingDbContext>((sp, options) =>
+            options
+                .UseNpgsql(
+                    configuration.GetConnectionString("Database"),
+                    npgsqlOptions => npgsqlOptions
+                        .MigrationsHistoryTable(HistoryRepository.DefaultTableName, Schemas.Ticketing))
+                .AddInterceptors(sp.GetRequiredService<PublishDomainEventsInterceptor>())
+                .UseSnakeCaseNamingConvention());
+
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
+
+        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<TicketingDbContext>());
+
+        services.AddSingleton<CartService>();
     }
 }

@@ -47,13 +47,27 @@ El módulo de eventos está diseñado siguiendo una arquitectura modular y en ca
 5. **Respuesta**
     - El resultado se transforma en una respuesta HTTP adecuada.
 
-## Diagrama de Flujo
-
-flowchart TD A[HTTP Request] --> B[Endpoint Presentation] B --> C[MediatR Command/Query] C --> D[Application Handler] D --> E[Domain/Infrastructure] E --> F[Base de datos]
-
 ## Resumen
 
 -   El módulo de eventos es independiente y desacoplado.
 -   La comunicación entre capas se realiza mediante MediatR.
 -   La persistencia se gestiona con Entity Framework Core.
 -   Los endpoints son minimalistas y fáciles de mantener.
+
+## Como iniciar el proyecto
+1. Instalar .NET 9 SDK desde https://dotnet.microsoft.com/en-us/download/dotnet/9.0
+2. Instalar PostgreSQL desde https://www.postgresql.org/download/
+3. Instalar Docker desde https://www.docker.com/get-started/
+4. Clonar el repositorio del proyecto
+5. Escribir en la terminal:
+    ```bash
+    docker-compose up
+    ```
+5.1. Si falla la imagen usad los siguientes comandos:
+    ```bash
+    docker-compose down
+    docker-compose build --no-cache
+    docker-compose 
+    ```
+6. Url de la API: https://localhost:5001
+6.1. Si usais Swagger: https://localhost:5001/swagger/index.html
