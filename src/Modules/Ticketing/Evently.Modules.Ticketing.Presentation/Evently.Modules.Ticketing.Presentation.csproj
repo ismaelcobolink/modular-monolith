@@ -7,7 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MassTransit" Version="8.5.2" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\Common\Evently.Common.Presentation\Evently.Common.Presentation.csproj" />
+    <ProjectReference Include="..\..\Users\Evently.Modules.Users.IntegrationEvents\Evently.Modules.Users.IntegrationEvents.csproj" />
     <ProjectReference Include="..\Evently.Modules.Ticketing.Application\Evently.Modules.Ticketing.Application.csproj" />
   </ItemGroup>
 
