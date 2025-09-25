@@ -5,7 +5,7 @@ using Evently.Modules.Users.IntegrationEvents;
 using MassTransit;
 using MediatR;
 
-namespace Evently.Modules.Ticketing.Presentation.Consumers;
+namespace Evently.Modules.Ticketing.Presentation.Customers;
 
 public sealed class UserRegisteredIntegrationEventConsumer(ISender sender) : IConsumer<UserRegisteredIntegrationEvent>
 {
