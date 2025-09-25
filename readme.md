@@ -1,4 +1,4 @@
-# Evently Modular Monolith
+# Análisis de Arquitectura - Evently Modular Monolith
 
 ## 📋 Resumen Ejecutivo
 
@@ -146,12 +146,255 @@ app.MapPut("events/{id}/publish", async (Guid id, ISender sender) =>
 7. **Domain Events** → Se publican eventos del dominio
 8. **Response** → Se devuelve resultado al cliente
 
-### Comunicación entre Módulos
+### Comunicación entre Módulos con MassTransit
 
-Los módulos se comunican mediante:
-- **Integration Events**: Eventos publicados a través de MassTransit
-- **Shared Kernel**: Código común en la capa Common
-- **No hay referencias directas entre módulos** para mantener el bajo acoplamiento
+Los módulos se comunican de manera **asíncrona y desacoplada** utilizando **eventos de integración** implementados con **MassTransit**. Esta arquitectura garantiza que los módulos permanezcan independientes mientras pueden reaccionar a cambios en otros módulos.
+
+#### 🔌 Arquitectura de Eventos de Integración
+
+**1. Configuración de MassTransit**
+
+La configuración central se realiza en `InfrastructureConfiguration`:
+
+```csharp
+public static IServiceCollection AddInfrastructure(
+    this IServiceCollection services,
+    Action<IRegistrationConfigurator>[] configureConsumers,
+    string databaseConnectionString)
+{
+    // Configuración de MassTransit
+    services.AddMassTransit(configure =>
+    {
+        configure.SetKebabCaseEndpointNameFormatter();
+        
+        // Registro dinámico de consumers desde cada módulo
+        foreach (Action<IRegistrationConfigurator> consumer in configureConsumers)
+        {
+            consumer(configure);
+        }
+        
+        // Usando transporte en memoria (puede cambiarse a RabbitMQ, Azure Service Bus, etc.)
+        configure.UsingInMemory((context, cfg) =>
+        {
+            cfg.ConfigureEndpoints(context);
+        });
+    });
+}
+```
+
+**2. Publicación de Eventos**
+
+El sistema implementa un **EventBus** que encapsula MassTransit:
+
+```csharp
+internal sealed class EventBus(IBus bus) : IEventBus
+{
+    public async Task PublishAsync<T>(T integrationEvent, CancellationToken cancellationToken) 
+        where T : IntegrationEvent
+    {
+        await _bus.Publish(integrationEvent, cancellationToken);
+    }
+}
+```
+
+**3. Flujo de Eventos: Domain → Integration**
+
+Los eventos siguen este flujo:
+1. **Domain Event** se genera en la entidad
+2. **Domain Event Handler** procesa el evento interno
+3. **Integration Event** se publica para otros módulos
+
+#### 📨 Ejemplo Concreto: Registro de Usuario
+
+Este es el flujo completo implementado actualmente en el sistema:
+
+**1. Módulo Users - Publicación del Evento**
+
+Cuando un usuario se registra:
+
+```csharp
+// 1. El comando RegisterUserCommand crea un nuevo usuario
+public class RegisterUserCommandHandler
+{
+    public async Task<Result<Guid>> Handle(RegisterUserCommand command)
+    {
+        var user = User.Create(email, firstName, lastName);
+        // El usuario emite UserRegisteredDomainEvent
+    }
+}
+
+// 2. El Domain Event Handler procesa el evento y publica Integration Event
+internal sealed class RegisterUserDomainEventHandler(ISender sender, IEventBus eventBus) 
+    : IDomainEventHandler<UserRegisteredDomainEvent>
+{
+    public async Task Handle(UserRegisteredDomainEvent notification, CancellationToken cancellationToken)
+    {
+        // Obtiene datos completos del usuario
+        Result<UserResponse> result = await _sender.Send(
+            new GetUserQuery(notification.UserId), 
+            cancellationToken);
+        
+        // Publica evento de integración para otros módulos
+        await _eventBus.PublishAsync(
+            new UserRegisteredIntegrationEvent(
+                notification.Id,
+                notification.OccurredOnUtc,
+                notification.UserId,
+                result.Value.Email,
+                result.Value.FirstName,
+                result.Value.LastName
+            ), 
+            cancellationToken);
+    }
+}
+```
+
+**2. Definición del Evento de Integración**
+
+Los eventos de integración se definen en proyectos separados para evitar acoplamiento:
+
+```csharp
+// En Evently.Modules.Users.IntegrationEvents
+public sealed class UserRegisteredIntegrationEvent : IntegrationEvent
+{
+    public Guid UserId { get; init; }
+    public string Email { get; init; }
+    public string FirstName { get; init; }
+    public string LastName { get; init; }
+}
+```
+
+**3. Módulo Ticketing - Consumo del Evento**
+
+El módulo de Ticketing necesita crear un Customer cuando se registra un usuario:
+
+```csharp
+// Consumer en la capa de Presentación
+public sealed class UserRegisteredIntegrationEventConsumer(ISender sender) 
+    : IConsumer<UserRegisteredIntegrationEvent>
+{
+    public async Task Consume(ConsumeContext<UserRegisteredIntegrationEvent> context)
+    {
+        // Crea un Customer en el contexto de Ticketing
+        Result result = await _sender.Send(
+            new CreateCustomerCommand(
+                context.Message.UserId, 
+                context.Message.Email, 
+                context.Message.FirstName, 
+                context.Message.LastName));
+        
+        if (result.IsFailure)
+        {
+            throw new EventlyException(nameof(UserRegisteredIntegrationEventConsumer), result.Error);
+        }
+    }
+}
+```
+
+**4. Registro del Consumer**
+
+Cada módulo registra sus consumers:
+
+```csharp
+// En TicketingModule.cs
+public static void ConfigureConsumers(IRegistrationConfigurator registrationConfiguration)
+{
+    registrationConfiguration.AddConsumer<UserRegisteredIntegrationEventConsumer>();
+}
+```
+
+#### 🔄 Diagrama de Comunicación entre Módulos
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Users Module                         │
+├─────────────────────────────────────────────────────────────┤
+│  1. User.Create() → UserRegisteredDomainEvent               │
+│  2. DomainEventHandler → Procesa evento interno             │
+│  3. EventBus.PublishAsync(UserRegisteredIntegrationEvent)   │
+└────────────────────────┬────────────────────────────────────┘
+                        │
+                        │ MassTransit In-Memory Bus
+                        ▼
+        ┌───────────────────────────────┐
+        │   UserRegisteredIntegration   │
+        │          Event                │
+        └───────────┬───────────────────┘
+                    │
+    ┌───────────────▼────────────────┐
+    │         Event Queue            │
+    │      (In-Memory/RabbitMQ)      │
+    └───────────────┬────────────────┘
+                    │
+┌───────────────────▼─────────────────────────────────────────┐
+│                    Ticketing Module                         │
+├─────────────────────────────────────────────────────────────┤
+│  1. UserRegisteredIntegrationEventConsumer.Consume()        │
+│  2. CreateCustomerCommand → Customer.Create()               │
+│  3. Persiste Customer en su propio contexto                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 🎯 Ventajas del Enfoque con MassTransit
+
+1. **Desacoplamiento Total**: Los módulos no se conocen directamente
+2. **Escalabilidad**: Fácil migración a bus externo (RabbitMQ, Azure Service Bus)
+3. **Resiliencia**: Reintentos y políticas de error configurables
+4. **Observabilidad**: Logging y tracing integrado
+5. **Testing**: Fácil de testear con InMemory transport
+6. **Flexibilidad**: Permite procesamiento asíncrono y paralelo
+
+#### 📦 Organización de Eventos de Integración
+
+```
+Modules/
+├── Users/
+│   ├── *.Domain           (UserRegisteredDomainEvent)
+│   ├── *.Application       (RegisterUserDomainEventHandler)
+│   ├── *.IntegrationEvents (UserRegisteredIntegrationEvent) ← Proyecto separado
+│   └── *.Infrastructure    (Configuración del módulo)
+└── Ticketing/
+    ├── *.Domain           (Customer entity)
+    ├── *.Application      (CreateCustomerCommand)
+    └── *.Presentation     (UserRegisteredIntegrationEventConsumer)
+```
+
+#### 🔮 Posibles Eventos de Integración Futuros
+
+Basándose en la arquitectura actual, estos serían eventos naturales a implementar:
+
+**Desde Events Module:**
+- `EventPublishedIntegrationEvent` → Ticketing crea inventario de tickets
+- `EventCancelledIntegrationEvent` → Ticketing cancela tickets vendidos
+- `TicketTypeCreatedIntegrationEvent` → Ticketing actualiza configuración
+
+**Desde Ticketing Module:**
+- `TicketPurchasedIntegrationEvent` → Events actualiza disponibilidad
+- `PaymentProcessedIntegrationEvent` → Users actualiza historial
+
+**Desde Users Module:**
+- `UserProfileUpdatedIntegrationEvent` → Ticketing actualiza Customer
+- `UserDeletedIntegrationEvent` → Soft delete en todos los módulos
+
+#### ⚙️ Configuración para Producción
+
+Para ambientes productivos, se puede cambiar fácilmente el transporte:
+
+```csharp
+// Cambiar de InMemory a RabbitMQ
+configure.UsingRabbitMq((context, cfg) =>
+{
+    cfg.Host("rabbitmq://localhost", h =>
+    {
+        h.Username("guest");
+        h.Password("guest");
+    });
+    
+    cfg.ConfigureEndpoints(context);
+});
+```
+
+Esta arquitectura proporciona una base sólida para la comunicación entre módulos, manteniendo el bajo acoplamiento y permitiendo una fácil evolución hacia microservicios si fuera necesario.
 
 ## 🛠️ Tecnologías y Patrones
 
@@ -252,11 +495,11 @@ El proyecto incluye configuración completa de Docker:
                      │
 ┌────────────────────▼────────────────────────────────┐
 │                    MediatR                          │
-└──────┬─────────────────┬─────────────────┬──────────┘
-       │                 │                 │
+└──────┬──────────────┬──────────────┬────────────────┘
+       │              │              │
 ┌──────▼───────┐  ┌──────▼───────┐  ┌──────▼───────┐
-│  Events      │  │ Ticketing    │  │    Users     │
-│  Module      │  │  Module      │  │    Module    │
+│  Events      │  │ Ticketing    │  │   Users      │
+│  Module      │  │  Module      │  │  Module      │
 ├──────────────┤  ├──────────────┤  ├──────────────┤
 │Presentation  │  │Presentation  │  │Presentation  │
 ├──────────────┤  ├──────────────┤  ├──────────────┤
@@ -267,9 +510,9 @@ El proyecto incluye configuración completa de Docker:
 │Infrastructure│  │Infrastructure│  │Infrastructure│
 └─────┬────────┘  └─────┬────────┘  └─────┬────────┘
       │                 │                 │
-┌─────▼─────────────────▼─────────────────▼┐
-│            PostgreSQL Database           │
-└──────────────────────────────────────────┘
+┌─────▼─────────────────▼─────────────────▼──┐
+│            PostgreSQL Database             │
+└────────────────────────────────────────────┘
 ```
 
 ## 🎯 Casos de Uso Principales
