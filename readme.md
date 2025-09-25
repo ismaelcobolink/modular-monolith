@@ -1,4 +1,4 @@
-# Análisis de Arquitectura - Evently Modular Monolith
+# Evently Modular Monolith
 
 ## 📋 Resumen Ejecutivo
 
