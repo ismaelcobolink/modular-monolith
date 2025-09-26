@@ -21,7 +21,9 @@ public sealed class TicketType : Entity
 
     public decimal Quantity { get; private set; }
 
-    public static TicketType Create(
+    // Solo el dominio puede crear instancias
+    // Es decir, solo se puede crear a través del método Create en la clase Event
+    internal static TicketType Create(
         Event @event,
         string name,
         decimal price,
@@ -41,15 +43,27 @@ public sealed class TicketType : Entity
         return ticketType;
     }
 
-    public void UpdatePrice(decimal price)
+    public Result UpdatePrice(decimal price, Event @event)
     {
         if (Price == price)
         {
-            return;
+            return Result.Failure(TicketTypeErrors.SamePrice());
+        }
+
+        if (@event.Status == EventStatus.Completed)
+        {
+            return Result.Failure(TicketTypeErrors.CannotChangePriceAfterEventCompleted());
+        }
+
+        if (@event.StartsAtUtc <= DateTime.UtcNow.AddHours(24))
+        {
+            return Result.Failure(TicketTypeErrors.CannotChangePriceWithin24Hours());
         }
 
         Price = price;
 
         Raise(new TicketTypePriceChangedDomainEvent(Id, Price));
+
+        return Result.Success();
     }
 }

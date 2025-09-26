@@ -1,5 +1,6 @@
 ﻿using Evently.Common.Domain;
 using Evently.Modules.Events.Domain.Categories;
+using Evently.Modules.Events.Domain.TicketTypes;
 
 namespace Evently.Modules.Events.Domain.Events;
 
@@ -24,6 +25,9 @@ public sealed class Event : Entity
     public DateTime? EndsAtUtc { get; private set; }
 
     public EventStatus Status { get; private set; }
+
+    private List<TicketType> _ticketTypes { get; set; } = [];
+    public IReadOnlyCollection<TicketType> TicketTypes => _ticketTypes.AsReadOnly();
 
     public static Result<Event> Create(
         Category category,
@@ -99,5 +103,18 @@ public sealed class Event : Entity
         Raise(new EventCanceledDomainEvent(Id));
 
         return Result.Success();
+    }
+
+    public Result<TicketType> AddTicketType(
+        string name,
+        decimal price,
+        string currency,
+        decimal quantity)
+    {
+        Result<TicketType> newTicketType = TicketType.Create(this, name, price, currency, quantity);
+        
+        _ticketTypes.Add(newTicketType.Value);
+
+        return newTicketType.Value;
     }
 }

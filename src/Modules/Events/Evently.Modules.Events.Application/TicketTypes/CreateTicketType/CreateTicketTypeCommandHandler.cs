@@ -8,7 +8,6 @@ namespace Evently.Modules.Events.Application.TicketTypes.CreateTicketType;
 
 internal sealed class CreateTicketTypeCommandHandler(
     IEventRepository eventRepository,
-    ITicketTypeRepository ticketTypeRepository,
     IUnitOfWork unitOfWork)
     : ICommandHandler<CreateTicketTypeCommand, Guid>
 {
@@ -21,12 +20,10 @@ internal sealed class CreateTicketTypeCommandHandler(
             return Result.Failure<Guid>(EventErrors.NotFound(request.EventId));
         }
 
-        var ticketType = TicketType.Create(@event, request.Name, request.Price, request.Currency, request.Quantity);
-
-        ticketTypeRepository.Insert(ticketType);
+        Result<TicketType> ticketTypeResult = @event.AddTicketType(request.Name, request.Price, request.Currency, request.Quantity);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return ticketType.Id;
+        return ticketTypeResult.Value.Id;
     }
 }
